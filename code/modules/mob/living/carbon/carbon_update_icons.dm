@@ -264,21 +264,32 @@
 	apply_overlay(BODYPARTS_LAYER)
 	update_damage_overlays()
 
+/// This looks at the chest and legs of the mob and decides how much our chest, arms, and head should be adjusted. This is useful for limbs that are larger or smaller than the scope of normal human height while keeping the feet anchored to the bottom of the tile
+/mob/living/carbon/proc/get_top_offset()
+	var/from_chest
+	var/from_leg
+	for(var/obj/item/bodypart/r_leg/leg_checked in bodyparts) // ...It works. Sadly.
+		if(leg_checked.top_offset > from_leg || isnull(from_leg)) // We find the tallest leg available
+			from_leg = leg_checked.top_offset
+	if(isnull(from_leg))
+		from_leg = 0 // If we have no legs, we set this to zero to avoid any math issues that might stem from it being NULL
+	for(var/obj/item/bodypart/chest/chest_checked in bodyparts) // Take the height from the chest
+		from_chest = chest_checked.top_offset
+	return (from_chest + from_leg) // The total hight of the chest and legs together
 
-
-/////////////////////
-// Limb Icon Cache //
-/////////////////////
-/*
-	Called from update_body_parts() these procs handle the limb icon cache.
-	the limb icon cache adds an icon_render_key to a human mob, it represents:
-	- skin_tone (if applicable)
-	- gender
-	- limbs (stores as the limb name and whether it is removed/fine, organic/robotic)
-	These procs only store limbs as to increase the number of matching icon_render_keys
-	This cache exists because drawing 6/7 icons for humans constantly is quite a waste
-	See RemieRichards on irc.rizon.net #coderbus (RIP remie :sob:)
-*/
+/////////////////////////
+// Limb Icon Cache 1.1 //
+/////////////////////////
+/**
+ * Called from update_body_parts() these procs handle the limb icon cache.
+ * the limb icon cache adds an icon_render_key to a human mob, it represents:
+ * - Gender, if applicable
+ * - The ID of the limb
+ * - Draw color, if applicable
+ * These procs only store limbs as to increase the number of matching icon_render_keys
+ * This cache exists because drawing 6/7 icons for humans constantly is quite a waste
+ * See RemieRichards on irc.rizon.net #coderbus (RIP remie :sob:)
+**/
 
 //produces a key based on the mob's limbs
 

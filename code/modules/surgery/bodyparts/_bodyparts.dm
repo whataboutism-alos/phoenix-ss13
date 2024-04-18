@@ -111,6 +111,48 @@
 	/// Whether the bodypart renders much like an organic one, important for icon logic
 	var/organic_render = TRUE
 
+	///A list of all bodypart overlays to draw
+	var/list/bodypart_overlays = list()
+
+	/// Type of an attack from this limb does. Arms will do punches, Legs for kicks, and head for bites. (TO ADD: tactical chestbumps)
+	var/attack_type = BRUTE
+	/// the verb used for an unarmed attack when using this limb, such as arm.unarmed_attack_verb = punch
+	var/unarmed_attack_verb = "bump"
+	/// if we have a special attack verb for hitting someone who is grappled by us, it goes here.
+	var/grappled_attack_verb
+	/// what visual effect is used when this limb is used to strike someone.
+	var/unarmed_attack_effect = ATTACK_EFFECT_PUNCH
+	/// Sounds when this bodypart is used in an umarmed attack
+	var/sound/unarmed_attack_sound = 'sound/weapons/punch1.ogg'
+	var/sound/unarmed_miss_sound = 'sound/weapons/punchmiss.ogg'
+	///Lowest possible punch damage this bodypart can give. If this is set to 0, unarmed attacks will always miss.
+	var/unarmed_damage_low = 1
+	///Highest possible punch damage this bodypart can ive.
+	var/unarmed_damage_high = 1
+	///Determines the accuracy bonus, armor penetration and knockdown probability.
+	var/unarmed_effectiveness = 10
+	/// How many pixels this bodypart will offset the top half of the mob, used for abnormally sized torsos and legs
+	var/top_offset = 0
+
+	/// Traits that are given to the holder of the part. If you want an effect that changes this, don't add directly to this. Use the add_bodypart_trait() proc
+	var/list/bodypart_traits = list()
+	/// The name of the trait source that the organ gives. Should not be altered during the events of gameplay, and will cause problems if it is.
+	var/bodypart_trait_source = BODYPART_TRAIT
+	/// List of the above datums which have actually been instantiated, managed automatically
+	var/list/feature_offsets = list()
+
+	/// In the case we dont have dismemberable features, or literally cant get wounds, we will use this percent to determine when we can be dismembered.
+	/// Compared to our ABSOLUTE maximum. Stored in decimal; 0.8 = 80%.
+	var/hp_percent_to_dismemberable = 0.8
+	/// If true, we will use [hp_percent_to_dismemberable] even if we are dismemberable via wounds. Useful for things with extreme wound resistance.
+	var/use_alternate_dismemberment_calc_even_if_mangleable = FALSE
+	/// If false, no wound that can be applied to us can mangle our exterior. Used for determining if we should use [hp_percent_to_dismemberable] instead of normal dismemberment.
+	var/any_existing_wound_can_mangle_our_exterior
+	/// If false, no wound that can be applied to us can mangle our interior. Used for determining if we should use [hp_percent_to_dismemberable] instead of normal dismemberment.
+	var/any_existing_wound_can_mangle_our_interior
+	/// get_damage() / total_damage must surpass this to allow our limb to be disabled, even temporarily, by an EMP.
+	var/robotic_emp_paralyze_damage_percent_threshold = 0.3
+
 
 /obj/item/bodypart/Initialize(mapload)
 	. = ..()

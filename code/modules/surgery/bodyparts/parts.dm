@@ -256,6 +256,8 @@
 	px_y = 12
 	max_stamina_damage = 50
 	can_be_disabled = TRUE
+	/// Datum describing how to offset things worn on the foot of this leg, note that an x offset won't do anything here
+	var/datum/worn_feature_offset/worn_foot_offset
 
 
 /obj/item/bodypart/l_leg/set_owner(new_owner)
@@ -347,6 +349,8 @@
 	px_y = 12
 	max_stamina_damage = 50
 	can_be_disabled = TRUE
+	/// Datum describing how to offset things worn on the foot of this leg, note that an x offset won't do anything here
+	var/datum/worn_feature_offset/worn_foot_offset
 
 
 /obj/item/bodypart/r_leg/set_owner(new_owner)

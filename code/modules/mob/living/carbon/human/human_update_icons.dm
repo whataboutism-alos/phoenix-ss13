@@ -109,25 +109,25 @@ There are several things that need to be remembered:
 			if(hud_used.inventory_shown)
 				client.screen += w_uniform
 		update_observer_view(w_uniform,1)
-	
+
 		if(wear_suit && (wear_suit.flags_inv & HIDEJUMPSUIT))
 			return
-	
+
 		var/target_overlay = w_uniform.worn_icon_state || w_uniform.icon_state
-	
+
 		var/mutable_appearance/uniform_overlay
-	
+
 		var/female_alpha_mask = NO_FEMALE_UNIFORM
-	
+
 		if(istype(w_uniform, /obj/item/clothing/under))
 			var/obj/item/clothing/under/under = w_uniform
 			if(body_type == FEMALE)
 				female_alpha_mask = under.fitted
 			if(under.adjusted == ALT_STYLE)
 				target_overlay = "[target_overlay]_d"
-	
+
 		uniform_overlay = w_uniform.build_worn_icon(default_layer = UNIFORM_LAYER, override_state = target_overlay, isinhands = FALSE, femaleuniform = female_alpha_mask, wearer = src, slot = ITEM_SLOT_ICLOTHING)
-	
+
 		overlays_standing[UNIFORM_LAYER] = uniform_overlay
 
 	apply_overlay(UNIFORM_LAYER)
@@ -326,7 +326,7 @@ There are several things that need to be remembered:
 			if(hud_used.inventory_shown)
 				client.screen += wear_suit
 		update_observer_view(wear_suit,1)
-	
+
 		overlays_standing[SUIT_LAYER] = wear_suit.build_worn_icon(default_layer = SUIT_LAYER, default_icon_file = 'icons/mob/clothing/suit.dmi', wearer = src, slot = ITEM_SLOT_OCLOTHING)
 		var/mutable_appearance/suit_overlay = overlays_standing[SUIT_LAYER]
 		overlays_standing[SUIT_LAYER] = suit_overlay
@@ -458,7 +458,16 @@ generate/load female uniform sprites matching all previously decided variables
 
 
 */
-/obj/item/proc/build_worn_icon(default_layer = 0, default_icon_file = null, isinhands = FALSE, override_state, femaleuniform = NO_FEMALE_UNIFORM, mob/living/carbon/wearer, slot = NONE)
+/obj/item/proc/build_worn_icon(
+	default_layer = 0,
+	default_icon_file = null,
+	isinhands = FALSE,
+	override_state,
+	femaleuniform = NO_FEMALE_UNIFORM,
+	mob/living/carbon/wearer,
+	use_height_offset = TRUE,
+	slot = NONE
+)
 	var/static/list/slot_translation = SLOT_TRANSLATION_LIST
 	var/static/list/bodytype_translation = BODYTYPE_TRANSLATION_LIST
 	var/datum/species/species = wearer ? wearer.dna.species : null
@@ -527,6 +536,23 @@ generate/load female uniform sprites matching all previously decided variables
 	//eg: ammo counters, primed grenade flashes, etc.
 	var/list/worn_overlays = worn_overlays(standing, isinhands, file2use, perc_bodytype, slot, t_state, worn_prefix, accessory_offsets)
 	if(worn_overlays?.len)
+		if(!isinhands && default_layer && ishuman(loc) && use_height_offset)
+			var/mob/living/carbon/human/human_loc = loc
+			if(human_loc.get_mob_height() != HUMAN_HEIGHT_MEDIUM)
+				var/string_form_layer = num2text(default_layer)
+				var/offset_amount = GLOB.layers_to_offset[string_form_layer]
+				if(isnull(offset_amount))
+					// Worn overlays don't get batched in with standing overlays because they are overlay overlays
+					// ...So we need to apply human height here as well
+					for(var/mutable_appearance/applied_appearance as anything in worn_overlays)
+						if(isnull(applied_appearance))
+							continue
+						human_loc.apply_height_filters(applied_appearance)
+				else
+					for(var/mutable_appearance/applied_appearance in worn_overlays)
+						if(isnull(applied_appearance))
+							continue
+						human_loc.apply_height_offsets(applied_appearance, offset_amount)
 		standing.overlays.Add(worn_overlays)
 
 	var/x_center
@@ -573,6 +599,9 @@ generate/load female uniform sprites matching all previously decided variables
 				.[2] = offsets["y"]
 	else
 		.[2] = worn_y_offset
+	if(ishuman(loc) && slot_flags != ITEM_SLOT_FEET) /// we adjust the human body for high given by body parts, execpt shoes, because they are always on the bottom
+		var/mob/living/carbon/human/human_holder = loc
+		.[2] += human_holder.get_top_offset()
 
 //Can't think of a better way to do this, sadly
 /mob/proc/get_item_offsets_for_index(i)
@@ -719,3 +748,92 @@ generate/load female uniform sprites matching all previously decided variables
 
 	apply_overlay(BODYPARTS_LAYER)
 	update_damage_overlays()
+
+// Hooks into human apply overlay so that we can modify all overlays applied through standing overlays to our height system.
+// Some of our overlays will be passed through a displacement filter to make our mob look taller or shorter.
+// Some overlays can't be displaced as they're too close to the edge of the sprite or cross the middle point in a weird way.
+// So instead we have to pass them through an offset, which is close enough to look good.
+/mob/living/carbon/human/apply_overlay(cache_index)
+	if(get_mob_height() == HUMAN_HEIGHT_MEDIUM)
+		return ..()
+
+	var/raw_applied = overlays_standing[cache_index]
+	var/string_form_index = num2text(cache_index)
+	var/offset_amount = GLOB.layers_to_offset[string_form_index]
+	if(isnull(offset_amount))
+		if(islist(raw_applied))
+			for(var/mutable_appearance/applied_appearance as anything in raw_applied)
+				if(isnull(applied_appearance))
+					continue
+				apply_height_filters(applied_appearance)
+		else if(!isnull(raw_applied))
+			apply_height_filters(raw_applied)
+	else
+		if(islist(raw_applied))
+			for(var/mutable_appearance/applied_appearance as anything in raw_applied)
+				if(isnull(applied_appearance))
+					continue
+				apply_height_offsets(applied_appearance, offset_amount)
+		else if(!isnull(raw_applied))
+			apply_height_offsets(raw_applied, offset_amount)
+
+	return ..()
+
+/**
+ * Used in some circumstances where appearances can get cut off from the mob sprite from being too tall
+ *
+ * upper_torso is to specify whether the appearance is locate in the upper half of the mob rather than the lower half,
+ * higher up things (hats for example) need to be offset more due to the location of the filter displacement
+ */
+/mob/living/carbon/human/proc/apply_height_offsets(mutable_appearance/appearance, upper_torso)
+	var/height_to_use = num2text(get_mob_height())
+	var/final_offset = 0
+	switch(upper_torso)
+		if(UPPER_BODY)
+			final_offset = GLOB.human_heights_to_offsets[height_to_use][1]
+		if(LOWER_BODY)
+			final_offset = GLOB.human_heights_to_offsets[height_to_use][2]
+		else
+			return
+
+	appearance.pixel_y += final_offset
+	return appearance
+
+/**
+ * Applies a filter to an appearance according to mob height
+ */
+/mob/living/carbon/human/proc/apply_height_filters(mutable_appearance/appearance)
+	var/static/icon/cut_torso_mask = icon('icons/effects/cut.dmi', "Cut1")
+	var/static/icon/cut_legs_mask = icon('icons/effects/cut.dmi', "Cut2")
+	var/static/icon/lenghten_torso_mask = icon('icons/effects/cut.dmi', "Cut3")
+	var/static/icon/lenghten_legs_mask = icon('icons/effects/cut.dmi', "Cut4")
+
+	appearance.remove_filter(list(
+		"Cut_Torso",
+		"Cut_Legs",
+		"Lenghten_Legs",
+		"Lenghten_Torso",
+		"Gnome_Cut_Torso",
+		"Gnome_Cut_Legs",
+	))
+
+	switch(get_mob_height())
+		// Don't set this one directly, use TRAIT_DWARF
+		if(HUMAN_HEIGHT_DWARF)
+			appearance.add_filter("Gnome_Cut_Torso", 1, displacement_map_filter(cut_torso_mask, x = 0, y = 0, size = 2))
+			appearance.add_filter("Gnome_Cut_Legs", 1, displacement_map_filter(cut_legs_mask, x = 0, y = 0, size = 3))
+		if(HUMAN_HEIGHT_SHORTEST)
+			appearance.add_filter("Cut_Torso", 1, displacement_map_filter(cut_torso_mask, x = 0, y = 0, size = 1))
+			appearance.add_filter("Cut_Legs", 1, displacement_map_filter(cut_legs_mask, x = 0, y = 0, size = 1))
+		if(HUMAN_HEIGHT_SHORT)
+			appearance.add_filter("Cut_Legs", 1, displacement_map_filter(cut_legs_mask, x = 0, y = 0, size = 1))
+		if(HUMAN_HEIGHT_TALL)
+			appearance.add_filter("Lenghten_Legs", 1, displacement_map_filter(lenghten_legs_mask, x = 0, y = 0, size = 1))
+		if(HUMAN_HEIGHT_TALLER)
+			appearance.add_filter("Lenghten_Torso", 1, displacement_map_filter(lenghten_torso_mask, x = 0, y = 0, size = 1))
+			appearance.add_filter("Lenghten_Legs", 1, displacement_map_filter(lenghten_legs_mask, x = 0, y = 0, size = 1))
+		if(HUMAN_HEIGHT_TALLEST)
+			appearance.add_filter("Lenghten_Torso", 1, displacement_map_filter(lenghten_torso_mask, x = 0, y = 0, size = 1))
+			appearance.add_filter("Lenghten_Legs", 1, displacement_map_filter(lenghten_legs_mask, x = 0, y = 0, size = 2))
+
+	return appearance

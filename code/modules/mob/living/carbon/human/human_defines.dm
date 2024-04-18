@@ -43,13 +43,24 @@
 
 	var/age = 30 //Player's age
 
+
+
+	///Flags for showing/hiding underwear, toggleabley by a verb
+	var/underwear_visibility = NONE
 	//consider updating /mob/living/carbon/human/copy_clothing_prefs() if adding more of these
 	var/underwear = "Nude" //Which underwear the player wants
 	var/underwear_color = "000"
 	var/undershirt = "Nude" //Which undershirt the player wants
+	var/undershirt_color = "FFF"
 	var/socks = "Nude" //Which socks the player wants
+	var/socks_color = "FFF"
 	var/backpack = DBACKPACK //Which backpack type the player has chosen.
 	var/jumpsuit_style = PREF_SUIT //suit/skirt
+
+	///Render key for mutant bodyparts, utilized to reduce the amount of re-rendering
+	var/mutant_renderkey = ""
+	///Whether the human is trying to hide their mutant bodyparts under their clothes intentially
+	var/try_hide_mutant_parts = FALSE
 
 	//Equipment slots
 	var/obj/item/clothing/wear_suit = null
@@ -92,14 +103,5 @@
 	/// When an braindead player has their equipment fiddled with, we log that info here for when they come back so they know who took their ID while they were DC'd for 30 seconds
 	var/list/afk_thefts
 
-	///Color of the undershirt
-	var/undershirt_color = "FFF"
-	///Color of the socks
-	var/socks_color = "FFF"
-	///Flags for showing/hiding underwear, toggleabley by a verb
-	var/underwear_visibility = NONE
-	///Render key for mutant bodyparts, utilized to reduce the amount of re-rendering
-	var/mutant_renderkey = ""
-	///Whether the human is trying to hide their mutant bodyparts under their clothes intentially
-	var/try_hide_mutant_parts = FALSE
-
+	/// Height of the mob
+	VAR_PROTECTED/mob_height = HUMAN_HEIGHT_MEDIUM
